@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSV to JSON</title>
+</head>
+<body>
+  <!-- TODO: replace with your full name and schedule -->
+  <h1>Franz Gheric Aller</h1>
+  <h3><em>IT 3206N Monday/Wednesday 6:00-8:30 PM</em></h3>
+  <br><br>
+
+  <h1>CSV to JSON</h1>
+
+  <h2>1. Upload CSV</h2>
+  <input type="file" id="csvFile" accept=".csv">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <button id="convertBtn">Convert CSV to JSON</button>
+
+  <h2>2. JSON Display</h2>
+  <pre id="output">Upload a CSV file and click Convert to JSON.</pre>
+
+  <script>
+    // Edit this map if your CSV uses different course codes.
+    const PROGRAMS = {
+      BSIT:  "Bachelor of Science in Information Technology",
+      BSCS:  "Bachelor of Science in Computer Science",
+      BSIS:  "Bachelor of Science in Information Systems",
+      BSCE:  "Bachelor of Science in Computer Engineering",
+      BSEMC: "Bachelor of Science in Entertainment and Multimedia Computing",
+      BSBA:  "Bachelor of Science in Business Administration",
+      BSA:   "Bachelor of Science in Accountancy",
+      BSN:   "Bachelor of Science in Nursing"
+    };
+
+    const output = document.getElementById("output");
+
+    // Parse CSV text into an array of rows (handles quotes and commas in fields)
+    function parseCSV(text) {
+      text = text.replace(/^\uFEFF/, "");
+      const rows = [];
+      let row = [], field = "", inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+          else if (c === '"') inQuotes = false;
+          else field += c;
+        } else if (c === '"') inQuotes = true;
+        else if (c === ",") { row.push(field); field = ""; }
+        else if (c === "\n" || c === "\r") {
+          if (c === "\r" && text[i + 1] === "\n") i++;
+          row.push(field); field = "";
+          if (row.some(v => v.trim() !== "")) rows.push(row);
+          row = [];
+        } else field += c;
+      }
+      row.push(field);
+      if (row.some(v => v.trim() !== "")) rows.push(row);
+      return rows;
+    }
+
+    const capitalize = s => s.trim().toLowerCase()
+      .replace(/(^|[\s\-'])([a-z])/g, (m, p, l) => p + l.toUpperCase());
+
+    function transform(rec) {
+      const code = (rec.course || "").trim();
+      const balance = parseFloat((rec.tuition_balance || "").replace(/[^0-9.\-]/g, ""));
+      return {
+        studentId: parseInt(rec.student_id, 10),
+        firstName: capitalize(rec.first_name || ""),
+        lastName: capitalize(rec.last_name || ""),
+        program: PROGRAMS[code.toUpperCase()] || code,
+        yearLevel: parseInt(rec.year_level, 10),
+        emailAddress: (rec.email || "").trim().toLowerCase(),
+        // marker so the number keeps 2 decimals in the JSON output
+        outstandingBalance: "__NUM__" + (isNaN(balance) ? 0 : balance).toFixed(2) + "__"
+      };
+    }
+
+    document.getElementById("convertBtn").addEventListener("click", () => {
+      const file = document.getElementById("csvFile").files[0];
+      if (!file) { output.textContent = "Please choose a CSV file first."; return; }
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        const rows = parseCSV(e.target.result);
+        if (rows.length < 2) { output.textContent = "The CSV file has no data rows."; return; }
+
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const data = rows.slice(1).map(r => {
+          const rec = {};
+          headers.forEach((h, i) => rec[h] = (r[i] || "").trim());
+          return transform(rec);
+        });
+
+        output.textContent = JSON.stringify(data, null, 2)
+          .replace(/"__NUM__(.*?)__"/g, "$1");
+      };
+      reader.onerror = () => output.textContent = "Could not read the file.";
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
